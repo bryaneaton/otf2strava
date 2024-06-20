@@ -1,4 +1,3 @@
-from stravalib.client import Client
 
 class WorkoutData:
     def __init__(self, data, workout):

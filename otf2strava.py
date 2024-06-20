@@ -139,6 +139,10 @@ def get_in_studio_response(email, password):
         "https://cognito-idp.us-east-1.amazonaws.com/", headers=header, json=body, timeout=10
     )
 
+    if response.status_code != 200:
+        print("Failed to authenticate to OTF. Please update the creds.yaml file...")
+        sys.exit(1)
+
     this_token = json.loads(response.content)["AuthenticationResult"]["IdToken"]
 
     endpoint = "https://api.orangetheory.co/virtual-class/in-studio-workouts"
