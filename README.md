@@ -1,5 +1,5 @@
-# otf
-A utility for pulling data from your Orange Theory account for better data analysis
+# otf2strava
+A utility for syncing individual workouts from OrangeTheory to Strava!
 
 * Install dependencies. `pip3 install -r requirements.txt`
 * [Create application on Strava](https://www.strava.com/settings/api)
