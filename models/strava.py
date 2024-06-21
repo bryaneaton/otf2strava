@@ -1,5 +1,5 @@
 class Activity:
-    def __init__(self, name, type, sport_type, start_date_local, elapsed_time, description=None, distance=None, trainer=None, commute=None):
+    def __init__(self, name, type, sport_type, start_date_local, elapsed_time, description=None, distance=None, trainer=None, commute=None, calories=None, max_heartrate=None, avg_heartrate=None):
         self.name = name
         self.type = type
         self.sport_type = sport_type
@@ -9,6 +9,9 @@ class Activity:
         self.distance = distance # meters
         self.trainer = trainer
         self.commute = commute
+        self.calories = calories
+        self.max_heartrate = max_heartrate
+        self.avg_heartrate = avg_heartrate
 
     def to_dict(self):
         return {
@@ -20,5 +23,8 @@ class Activity:
             "description": self.description,
             "distance": self.distance,
             "trainer": self.trainer,
-            "commute": self.commute
+            "commute": self.commute,
+            "calories": self.calories,
+            "max_heartrate": self.max_heartrate,
+            "avg_heartrate": self.avg_heartrate
         }

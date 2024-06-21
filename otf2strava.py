@@ -47,9 +47,14 @@ def post_activity(single_performance: WorkoutData):
     if single_performance.workout.classType == "Tread 50":
         sport_type = "Run"
         workout_type = "Run"
-        distance = (
+    if "Strength" in single_performance.workout.classType:
+        sport_type = "Workout"
+        workout_type = "Strength Training"
+    distance = (
             single_performance.treadmill_data.total_distance["Value"] * 1609.344
-        )  # Meters
+    )  # Meters
+
+
 
     activity = Activity(
         name,
@@ -59,6 +64,9 @@ def post_activity(single_performance: WorkoutData):
         single_performance.workout.activeTime,
         description=single_performance.workout.classType,
         distance=distance,
+        calories=single_performance.workout.totalCalories,
+        max_heartrate=single_performance.workout.maxHr,
+        avg_heartrate=single_performance.workout.avgHr,
     )
 
     response = client.post(url("/activities"), json=activity.to_dict())
