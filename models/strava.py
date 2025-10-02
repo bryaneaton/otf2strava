@@ -3,7 +3,7 @@ class Activity:
         self.name = name
         self.type = type
         self.sport_type = sport_type
-        self.start_date_local = start_date_local # ISO 8601 formatted date time
+        self.start_date_local = start_date_local.strftime("%Y-%m-%dT%H:%M:%S.%fZ") # ISO 8601 formatted date time
         self.elapsed_time = elapsed_time
         self.description = description
         self.distance = distance # meters

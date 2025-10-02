@@ -1,2 +1,3 @@
 strava-cli
+otf-api
 pyyaml

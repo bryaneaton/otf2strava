@@ -11,9 +11,11 @@ import yaml
 import requests
 from strava.api import oauth2
 from strava.config import creds_store
+from otf_api import Otf, OtfUser
+from otf_api.models import Workout
 
-from models.otf import WorkoutData
 from models.strava import Activity
+from datetime import datetime, timedelta, timezone
 
 with open('creds.yaml', 'r', encoding='utf-8') as file:
     creds = yaml.safe_load(file)
@@ -32,8 +34,20 @@ TOKEN_URL = f"{STRAVA_AUTH_API_BASE_URL}/token"
 REFRESH_TOKEN_URL = TOKEN_URL
 IMPERIAL_UNITS = False
 
+def get_workout_duration_minutes(start_time, end_time):
+    """Calculate workout duration in minutes"""
+    if isinstance(start_time, str):
+        start_time = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+    if isinstance(end_time, str):
+        end_time = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+    
+    duration = int((end_time - start_time).total_seconds() / 60)
+    # if duration is less than 0 set it to positive
+    if duration < 0:
+        duration = -duration
+    return duration
 
-def post_activity(single_performance: WorkoutData):
+def post_activity(single_performance: Workout):
     """
     Run, Rowing, Workout, WeightTraining etc are types.
     """
@@ -43,16 +57,19 @@ def post_activity(single_performance: WorkoutData):
     sport_type = "Workout"
     workout_type = "Workout"
     distance = None
-    name = single_performance.workout.classType
-    if single_performance.workout.classType == "Tread 50":
+    name = single_performance.otf_class.name
+    if single_performance.otf_class.name == "Tread 50":
         sport_type = "Run"
         workout_type = "Run"
-    if "Strength" in single_performance.workout.classType:
+    if "Strength" in single_performance.otf_class.name.lower():
         sport_type = "Workout"
         workout_type = "Strength Training"
-    distance = (
-            single_performance.treadmill_data.total_distance["Value"] * 1609.344
-    )  # Meters
+    if single_performance.treadmill_data.total_distance.display_unit == "miles":
+            distance = single_performance.treadmill_data.total_distance.display_value * 1609.344
+    
+    workout_duration = sum([s[1] for s in single_performance.zone_time_minutes]) * 60
+
+    telemetry = [tel.hr for tel in single_performance.telemetry.telemetry if tel.hr > 0]
 
 
 
@@ -60,13 +77,13 @@ def post_activity(single_performance: WorkoutData):
         name,
         workout_type,
         sport_type,
-        single_performance.workout.classDate,
-        single_performance.workout.activeTime,
-        description=single_performance.workout.classType,
+        single_performance.otf_class.starts_at,
+        workout_duration,
+        description=single_performance.otf_class.name,
         distance=distance,
-        calories=single_performance.workout.totalCalories,
-        max_heartrate=single_performance.workout.maxHr,
-        avg_heartrate=single_performance.workout.avgHr,
+        calories=single_performance.calories_burned,
+        max_heartrate=single_performance.telemetry.max_hr,
+        avg_heartrate=sum(telemetry) / len(telemetry),
     )
 
     response = client.post(url("/activities"), json=activity.to_dict())
@@ -86,7 +103,7 @@ def strava_login():
     from strava.api._helpers import client
 
     current_token = client.token
-    if current_token["expires_at"] > int(time.time()):
+    if current_token and current_token["expires_at"] > int(time.time()):
         print("Already logged in.")
         return
 
@@ -204,7 +221,7 @@ def get_input():
     :return:
     """
     wrk = input("Please enter your input: ")
-    if not assert_user_input(wrk, data_class_counter):
+    if not assert_user_input(wrk, len(workouts)):
         return False
     return int(wrk)
 
@@ -213,43 +230,19 @@ if __name__ == "__main__":
 
     strava_login()
 
-    studio_header, res, studio_token = get_in_studio_response(OTF_EMAIL, OTF_PASSWORD)
-
-    in_studio_response_json = json.loads(res.content)
-    memberUuid = in_studio_response_json["data"][0]["memberUuId"]
+    otf = Otf(user=OtfUser(OTF_EMAIL, OTF_PASSWORD))
     class_type_counter = {}
     classes_by_coach = {}
 
     # print(memberUuid)
 
-    member_details_url = (
-        "https://api.orangetheory.co/member/members/"
-        + memberUuid
-        + "?include=memberClassSummary"
-    )
-    member_details_response = requests.get(member_details_url, headers=studio_header, timeout=10)
-    member_details_response_json = json.loads(member_details_response.content)["data"]
+    workouts = otf.workouts.get_workouts(start_date=datetime.now() - timedelta(days=7))
 
-    data_class_counter = 0
-    performances = []
-    for workout in in_studio_response_json["data"]:
-        # List the last 20 workouts
-        if data_class_counter < 20:
-            perf_res = get_performance_response(
-                class_history_uuid=workout["classHistoryUuId"],
-                member_uuid=memberUuid,
-                token=studio_token,
-            )
-            performance = WorkoutData(
-                workout=workout, data=json.loads(perf_res.content)
-            )
-            performances.append(performance)
-            data_class_counter += 1
 
     print("Select a workout to post to Strava:")
-    for ix, performance in enumerate(performances):
+    for ix, performance in enumerate(workouts):
         print(
-            f"Workout #{ix+1}, Date: {performance.workout.classDate}, Type: {performance.workout.classType}"
+            f"Workout #{ix+1}, Date: {performance.otf_class.starts_at.strftime("%Y-%m-%d %H:%M:%S")}, Type: {performance.otf_class.name}"
         )
 
     while True:
@@ -257,7 +250,7 @@ if __name__ == "__main__":
         if workout_to_post:
             break
     # post_to_strave(workout_to_post, performances, token)
-    post_this = performances[workout_to_post - 1]
+    post_this = workouts[workout_to_post - 1]
 
     print("Posting workout to Strava...")
     post_activity(post_this)
