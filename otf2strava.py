@@ -6,15 +6,15 @@ import os
 import sys
 import time
 import webbrowser
+from datetime import datetime, timedelta
+
 import yaml
-import requests
 from strava.api import oauth2
 from strava.config import creds_store
 from otf_api import Otf, OtfUser
 from otf_api.models import Workout
 
 from models.strava import Activity
-from datetime import datetime, timedelta
 
 with open('creds.yaml', 'r', encoding='utf-8') as file:
     creds = yaml.safe_load(file)
@@ -34,8 +34,12 @@ REFRESH_TOKEN_URL = TOKEN_URL
 
 def post_activity(single_performance: Workout):
     """
-    Run, Rowing, Workout, WeightTraining etc are types.
+    Post a workout activity to Strava.
+
+    Args:
+        single_performance (Workout): The workout data from OTF
     """
+    # pylint: disable=import-outside-toplevel
     from strava.api._helpers import client, url
 
     # name, type, start_date_local, elapsed_time, description = None, distance = None
@@ -50,9 +54,10 @@ def post_activity(single_performance: Workout):
         sport_type = "Workout"
         workout_type = "Strength Training"
     if single_performance.treadmill_data.total_distance.display_unit == "miles":
-            distance = single_performance.treadmill_data.total_distance.display_value * 1609.344
-    
-    workout_duration = sum([s[1] for s in single_performance.zone_time_minutes]) * 60
+        distance = (
+            single_performance.treadmill_data.total_distance.display_value * 1609.344
+        )
+    workout_duration = sum(s[1] for s in single_performance.zone_time_minutes) * 60
 
     telemetry = [tel.hr for tel in single_performance.telemetry.telemetry if tel.hr > 0]
 
@@ -86,9 +91,11 @@ def post_activity(single_performance: Workout):
 
 def strava_login():
     """
-    Login to Strava
-    :return:
+    Authenticate and login to Strava using OAuth2.
+
+    Handles the complete OAuth2 flow including opening browser for user consent.
     """
+    # pylint: disable=import-outside-toplevel
     from strava.api._helpers import client
 
     current_token = client.token
@@ -117,19 +124,22 @@ def strava_login():
 
 
 
-if __name__ == "__main__":
-
+def main():
+    """Main function to run the OTF to Strava integration."""
     strava_login()
 
     otf = Otf(user=OtfUser(OTF_EMAIL, OTF_PASSWORD))
 
-    workouts = otf.workouts.get_workouts(start_date=datetime.now() - timedelta(days=7))
-
+    workouts = otf.workouts.get_workouts(
+        start_date=datetime.now() - timedelta(days=7)
+    )
 
     print("Select a workout to post to Strava:")
     for ix, performance in enumerate(workouts):
+        workout_date = performance.otf_class.starts_at.strftime("%Y-%m-%d %H:%M:%S")
         print(
-            f"Workout #{ix+1}, Date: {performance.otf_class.starts_at.strftime("%Y-%m-%d %H:%M:%S")}, Type: {performance.otf_class.name}"
+            f"Workout #{ix+1}, Date: {workout_date}, "
+            f"Type: {performance.otf_class.name}"
         )
 
     while True:
@@ -137,10 +147,13 @@ if __name__ == "__main__":
         if wrk.isdigit() and int(wrk) <= len(workouts) and int(wrk) > 0:
             workout_to_post = int(wrk)
             break
-        else:
-            print("Input must be a valid workout number")
-    # post_to_strave(workout_to_post, performances, token)
+        print("Input must be a valid workout number")
+
     post_this = workouts[workout_to_post - 1]
 
     print("Posting workout to Strava...")
     post_activity(post_this)
+
+
+if __name__ == "__main__":
+    main()

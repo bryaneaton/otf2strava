@@ -1,0 +1,10 @@
+[MESSAGES CONTROL]
+disable=import-error
+
+[FORMAT]
+max-line-length=100
+
+[DESIGN]
+max-args=7
+max-attributes=12
+max-positional-arguments=6
